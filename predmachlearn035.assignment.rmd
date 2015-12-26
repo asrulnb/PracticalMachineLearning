@@ -1,0 +1,125 @@
+---
+title: "Practical Machine Learning Assignment"
+author: "AsrulNB"
+date: "December 19, 2015"
+output: html_document
+---
+
+# Executive Summary
+This assignment is to Predict the class of movement in Testing Dataset based on the given Training Dataset. There are 5 class of movement where Class A is perfect execution and Class B to E in varying degree of noncompliance.
+
+Two sets of Data available, one for Training and Testing. The Training Dataset is further seperated into Training and Validation in 70% and 30% split. The Validation Dataset is for Cross Validation purpose to verify the accuracy of our Training Algorithm.
+
+Random Tree and Random Forest Method is selected to perform Traning and Prediction. From the result, Random Forest gives the best result with 99.5% prediction accuracy with only `0.5% Out of Sampling error` when `Cross Validated` with the Validation Dataset. It was then used to predict the result on the Testing Dataset.
+ 
+```{r initialize, echo=FALSE, results="hide", message=FALSE, warning=FALSE}
+rm(list = ls())
+
+this.dir <- "C:/Users/User/Documents/R/PracticalMachineLearning.Assignment"
+setwd(this.dir)
+
+library(caret)
+
+set.seed(3837)
+
+```
+
+# Import Data
+
+Initial viewing of both Dataset reveals that there are many empty data designated by NA and "DIV/0". These will be converted "NA" for standardization and easy manipulation. There are 19,622 observations and 160 fields of data. Majority of these (61%) are NA and therefore not relevant to our task.
+
+```{r import data, echo=FALSE}
+
+# Read the data into a Dataset and convert "NA" and "Div/0" as na
+dsTrain <- read.csv("pml-training.csv",na.string=c("NA", "#DIV/0!"))
+
+# Read the data into a Dataset and convert "NA" and "Div/0" as na
+dsTest <- read.csv("pml-testing.csv",na.string=c("NA", "#DIV/0!"))
+
+dim(dsTrain)
+
+prop.table(table(is.na(dsTrain)))
+```
+
+# Clean Data
+
+The existing Data need to be clean before we feed them to the algorithm. There are 7 fields that are unrelated to the Training and Prediction that will need to be taken out. All of the "NA" fields are also omitted. The process is done for both of the Dataset to ensure uniformity. New Dataset were made to hold the clean data.
+
+```{r clean data}
+
+dsTrainClean <- dsTrain[,-(1:7)] 
+dsTrainClean <- dsTrainClean[, apply(dsTrainClean, 2, function(x) !any(is.na(x)))]
+
+dsTestClean <- dsTest[,-(1:7)]
+dsTestClean <- dsTestClean[,apply(dsTestClean, 2, function(x) !any(is.na(x)))]
+
+```
+
+# Partition Data
+
+From the 19,622 observations, the Training Data is split into two portion of 70% and 30% respectively. One is used to Train the Machine Learning Algorithm and the other is to verify the accuracy and forcast the Out-of-sample error rate.
+
+```{r Partitioning Data}
+
+dsPartition <- createDataPartition(y=dsTrainClean$classe, p=0.70,list=F)
+
+dsTrainCleanTrain <- dsTrainClean[dsPartition,]
+dsTrainCleanValid <- dsTrainClean[-dsPartition,]
+
+```
+
+# Prediction Model Selection
+We will now apply our Prediction Model to find out which is the best method to use
+
+## Predicting with Decision Trees
+The first Method of Training and Prediction is Using the Decision Tree method. Decision Tree method is accurate to about 71% when run with the Validation Dataset.
+```{r Model Tree, echo=FALSE, message=FALSE, warning=FALSE}
+
+library("rpart")
+ModelTree <- rpart(classe ~., data=dsTrainCleanTrain, method="class")
+PredTree  <- predict(ModelTree, dsTrainCleanValid, type="class")
+confusionMatrix(PredTree,dsTrainCleanValid$classe)
+
+```
+
+## Predicting with Random Forest
+The second method is Random Forest. This gives better result at 99.5% accuracy with `only 0.5% Out of sample error` rate when `cross validated` to the Validation dataset.
+
+```{r Model Random Forest, echo=FALSE, message=FALSE, warning=FALSE}
+
+library("randomForest") 
+ModelRF <- randomForest(classe ~ ., data = dsTrainCleanTrain, ntree = 1024)
+PredRF <- predict(ModelRF, dsTrainCleanValid, type="class")
+confusionMatrix(PredRF,dsTrainCleanValid$classe)
+
+```
+
+# Result Prediction
+For final prediction for the result, we used the Random Forest model as it gives us the best result.
+
+```{r Prediction, echo=FALSE}
+
+dsResult <- predict(ModelRF,dsTestClean)
+
+dsResult
+
+```
+
+# Produce Result File
+The results are written to a set of files for Submission
+
+```{r Output Result}
+# Define Function to
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+# output the result to file
+
+pml_write_files(dsResult)
+
+```
